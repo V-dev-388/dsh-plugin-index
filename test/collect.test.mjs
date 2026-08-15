@@ -2,7 +2,7 @@
 // 运行：node --test test/
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { collectCandidates, normalizeManifest, validateEntry, sha256Hex } from '../scripts/build-index.mjs'
+import { collectCandidates, normalizeManifest, validateEntry, sha256Hex, splitRange, addDays } from '../scripts/build-index.mjs'
 
 const H = 'a'.repeat(64)
 const validManifest = (overrides = {}) => ({
@@ -218,4 +218,23 @@ test('normalizeManifest：大写 checksum 归一化为小写', () => {
 test('validateEntry 拒绝非法 checksum', () => {
   const result = validateEntry({ id: 'x', name: 'X', version: '1', description: 'd', type: 'static', downloadUrl: 'https://e.com/x.js', checksum: 'zz', entry: 'x.js' })
   assert.equal(result.ok, false)
+})
+
+test('splitRange：相邻两天拆成两个单日窗口（不丢日）', () => {
+  const parts = splitRange('2026-08-14', '2026-08-15')
+  assert.deepEqual(parts, [['2026-08-14', '2026-08-14'], ['2026-08-15', '2026-08-15']])
+})
+
+test('splitRange：长窗口对半拆且无重叠无空洞', () => {
+  const parts = splitRange('2026-01-01', '2026-12-31')
+  assert.equal(parts.length, 2)
+  assert.equal(parts[0][0], '2026-01-01')
+  assert.equal(parts[0][1], parts[1][0] === '1970-01-01' ? parts[0][1] : addDays(parts[1][0], -1))
+  assert.equal(parts[1][1], '2026-12-31')
+  // 两个子窗口首尾相接
+  assert.equal(addDays(parts[0][1], 1), parts[1][0])
+})
+
+test('splitRange：单日窗口不可再分', () => {
+  assert.equal(splitRange('2026-08-15', '2026-08-15'), null)
 })

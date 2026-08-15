@@ -289,24 +289,30 @@ function makeFetchers(token) {
   async function searchTopic() {
     const repos = new Map()
     async function scan(from, to) {
-      const query = `topic:${TOPIC} created:${from}..${to}`
-      for (let page = 1; page <= SEARCH_MAX_PAGES; page += 1) {
-        const data = await searchPage(query, page)
-        const items = data.items ?? []
-        for (const repo of items) repos.set(repo.full_name, repo)
-        if (items.length < PER_PAGE) return // 本窗口已取完
-      }
-      // 窗口被 1000 条封顶截断：二分后递归重扫
-      const mid = midpointDate(from, to)
-      if (mid === from || mid === to) {
+      const capped = await scanRange(from, to, repos)
+      if (!capped) return
+      const parts = splitRange(from, to)
+      if (parts === null) {
         console.warn(`bucket ${from}..${to} still capped at 1000, accepting partial`)
         return
       }
-      await scan(from, mid)
-      await scan(addDays(mid, 1), to)
+      for (const [a, b] of parts) await scan(a, b)
     }
     await scan(SEARCH_START, SEARCH_END)
     return [...repos.values()]
+  }
+
+  async function scanRange(from, to, repos) {
+    const query = `topic:${TOPIC} created:${from}..${to}`
+    let capped = false
+    for (let page = 1; page <= SEARCH_MAX_PAGES; page += 1) {
+      const data = await searchPage(query, page)
+      const items = data.items ?? []
+      for (const repo of items) repos.set(repo.full_name, repo)
+      if (items.length < PER_PAGE) return false // 本窗口已取完
+      if (page === SEARCH_MAX_PAGES) capped = true
+    }
+    return capped
   }
 
   async function fetchManifest(repo) {
@@ -340,16 +346,21 @@ function makeFetchers(token) {
 
 // ---------- 主流程 ----------
 
-function addDays(dateStr, days) {
+export function addDays(dateStr, days) {
   const date = new Date(`${dateStr}T00:00:00Z`)
   date.setUTCDate(date.getUTCDate() + days)
   return date.toISOString().slice(0, 10)
 }
 
-function midpointDate(from, to) {
+// 把一个会触发 1000 条封顶的日期窗口切成两个不重叠子窗口；单日窗口不可再分返回 null。
+export function splitRange(from, to) {
+  if (from === to) return null
   const start = Date.parse(`${from}T00:00:00Z`)
   const end = Date.parse(`${to}T00:00:00Z`)
-  return new Date(start + Math.floor((end - start) / 2)).toISOString().slice(0, 10)
+  const days = Math.round((end - start) / 86400000)
+  if (days === 1) return [[from, from], [to, to]] // 相邻两天：拆成两个单日窗口
+  const mid = addDays(from, Math.max(1, Math.floor(days / 2)))
+  return [[from, mid], [addDays(mid, 1), to]]
 }
 
 async function runAll(items, limit, worker) {
