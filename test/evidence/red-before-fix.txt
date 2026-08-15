@@ -1,0 +1,43 @@
+✔ 合法 manifest 收录（含 checksum 不再下载） (0.803916ms)
+✔ 缺 checksum 时实算并写入 (0.413458ms)
+✖ 缺 checksum 且算不出 → 过滤 (0.482083ms)
+✔ fork → 过滤 (0.081667ms)
+✔ archived → 过滤 (0.579ms)
+✔ 无默认分支 → 过滤 (0.113792ms)
+✔ id 冲突保留先收录者（旧索引优先） (0.222375ms)
+✔ id 冲突保留先收录者（本轮先见者优先） (0.155875ms)
+✔ removed.json 命中仓库名 → 跳过 (0.083041ms)
+✔ removed.json 命中插件 id → 跳过 (0.118833ms)
+✔ removed.json 命中 → 旧索引条目下架 (0.0985ms)
+✔ 已收录但本轮无 manifest 的旧条目：跳过不删 (0.063625ms)
+✔ 单插件形态 manifest 也收录 (0.086041ms)
+✔ 非法 manifest（坏 id / 非 HTTPS / 路径穿越 / 版本不符）→ 过滤 (0.163ms)
+✔ normalizeManifest：大写 checksum 归一化为小写 (0.057292ms)
+✔ validateEntry 拒绝非法 checksum (0.046208ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 15
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56.758917
+
+✖ failing tests:
+
+test at test/collect.test.mjs:53:1
+✖ 缺 checksum 且算不出 → 过滤 (0.482083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///Users/davidyao/project/DSH%20%E9%B8%BF%E8%92%99%E6%94%B9%E9%80%A0%E8%AE%A1%E5%88%92/dsh-plugin-index/test/collect.test.mjs:61:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
