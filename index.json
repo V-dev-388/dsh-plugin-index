@@ -1,4 +1,15 @@
 {
   "version": 1,
-  "plugins": []
+  "plugins": [
+    {
+      "id": "dsh-plugin-hello",
+      "name": "Hello",
+      "version": "1.0.0",
+      "description": "DSH 插件市场自建闭环示例插件：安装后打印一条日志。",
+      "type": "static",
+      "downloadUrl": "https://raw.githubusercontent.com/V-dev-388/dsh-plugin-hello/main/index.js",
+      "checksum": "30c5e0c8fb1f1ad0bc13294a7bc4409ba34f4bce03359c172b51ec743a01051b",
+      "entry": "index.js"
+    }
+  ]
 }
