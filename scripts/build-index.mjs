@@ -184,6 +184,16 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
 }
 
+// raw.githubusercontent.com 无认证配额文档，全局限速 5 req/s 防 429 级联。
+let lastRawAt = 0
+async function pacedRaw(url, timeoutMs = TIMEOUT_MS, maxRetries = MAX_RETRIES) {
+  const now = Date.now()
+  const waitMs = Math.max(0, lastRawAt + 200 - now)
+  lastRawAt = Date.now() + waitMs
+  if (waitMs > 0) await sleep(waitMs)
+  return fetchRaw(url, timeoutMs, maxRetries)
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -239,9 +249,9 @@ async function ghApi(path, token) {
   throw lastError ?? new Error(`failed after retries: ${path}`)
 }
 
-async function fetchRaw(url, timeoutMs = TIMEOUT_MS) {
+async function fetchRaw(url, timeoutMs = TIMEOUT_MS, maxRetries = MAX_RETRIES) {
   let lastError
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     if (attempt > 0) await sleep(1000 * 2 ** (attempt - 1))
     let response
     try {
@@ -302,30 +312,30 @@ function makeFetchers(token) {
   async function fetchManifest(repo) {
     const branch = repo.defaultBranch
     const rawUrl = `${RAW_BASE}/${repo.fullName}/${branch}/${MANIFEST_NAME}`
+    // 优先 raw HEAD（不占 API 配额）；429/失败时回退 git/trees（走认证 API，配额充足）。
     try {
-      const result = await fetchRaw(rawUrl)
+      const result = await pacedRaw(rawUrl, TIMEOUT_MS, 1)
       return JSON.parse(result.bytes.toString('utf8'))
-    } catch {
-      // 回退：git/trees 探测根目录文件（raw HEAD 失败时兜底）。
+    } catch (rawError) {
       try {
         const tree = await ghApi(`/repos/${repo.fullName}/git/trees/${branch}?recursive=1`, token)
         const found = (tree.tree ?? []).find((item) => item.path === MANIFEST_NAME && item.type === 'blob')
         if (!found) return null
-        const result = await fetchRaw(`${RAW_BASE}/${repo.fullName}/${branch}/${MANIFEST_NAME}`)
+        const result = await pacedRaw(`${RAW_BASE}/${repo.fullName}/${branch}/${MANIFEST_NAME}`, TIMEOUT_MS, 1)
         return JSON.parse(result.bytes.toString('utf8'))
       } catch (error) {
-        console.warn(`probe failed for ${repo.fullName}: ${error instanceof Error ? error.message : error}`)
+        console.warn(`probe failed for ${repo.fullName}: raw ${rawError instanceof Error ? rawError.message : rawError}; trees ${error instanceof Error ? error.message : error}`)
         return null
       }
     }
   }
 
   async function fetchDownload(url) {
-    const result = await fetchRaw(url)
+    const result = await pacedRaw(url)
     return { ok: true, bytes: result.bytes }
   }
 
-  return { searchPage, fetchManifest, fetchDownload }
+  return { searchTopic, fetchManifest, fetchDownload }
 }
 
 // ---------- 主流程 ----------
