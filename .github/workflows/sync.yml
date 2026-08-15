@@ -1,0 +1,41 @@
+name: sync plugin index
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build index
+        run: node scripts/build-index.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate index
+        run: node scripts/validate.mjs index.json
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "dsh-plugin-index bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet index.json; then
+            echo "index.json unchanged, nothing to commit"
+          else
+            git add index.json
+            git commit -m "chore: sync plugin index"
+            git push
+          fi
